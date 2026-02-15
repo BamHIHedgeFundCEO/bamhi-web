@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas yfinance plotly requests streamlit
+          pip install pandas yfinance plotly requests streamlit pandas_datareader
 
       # 4. 執行你的「中央廚房」腳本 (做便當)
       - name: Run Data Pipeline

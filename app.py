@@ -41,7 +41,7 @@ st.markdown("""
     /* 主標題 */
     h1 { color: #e6edf3 !important; font-weight: 700; }
     h2, h3 { color: #c9d1d9 !important; }
-    p, span, label { color: #8b949e !important; }
+    p, label { color: #8b949e !important; }
     
     /* 返回按鈕風格 */
     .stButton > button[kind="secondary"] {
@@ -110,13 +110,15 @@ def render_category_list():
         # 【修改點】加入 item.get("module") 讓系統知道要去哪個資料夾找資料
         row_data = get_data(cat_id, item.get("module"), ticker)
         
+        # (修改後的樣子)
         if row_data is None:
-            value_str, change_str = "—", "—"
+            value_str = "—"
         else:
             value_str = f"{row_data['value']:.2f}"
-            change_str = f"{row_data['change_pct']:+.2f}%"
+            # change_str 這一行可以刪掉或是留著不理它
             
-        label = f"{item['name']}  ·  最新: **{value_str}** ·  {change_str}"
+        # ✨ 關鍵修改：只保留名稱和數值，刪掉後面的漲跌幅
+        label = f"{item['name']}  ·  最新: **{value_str}**"
         if st.button(label, key=f"ind_{item['id']}", use_container_width=True, type="secondary"):
             st.session_state.selected_item = {**item, "value": row_data["value"] if row_data else None, "change_pct": row_data["change_pct"] if row_data else None}
             st.session_state.page = "detail"

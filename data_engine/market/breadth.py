@@ -1,94 +1,26 @@
 """S&P 500 市場寬度數據引擎"""
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import requests
-from io import StringIO
-import numpy as np
+"""
+data_engine/market/breadth.py
+(極速版) 讀取 data/breadth.csv
+"""
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import gc
+import numpy as np
 from datetime import datetime
+from data_engine import load_csv # 👈 引用工具
 
-@st.cache_data(ttl=86400) # 快取 24 小時，因為算 500 檔股票很耗時
 def fetch_data(ticker: str):
-    """
-    抓取 S&P 500 成分股，計算市場寬度，並與 S&P 500 大盤指數合併
-    """
-    try:
-        START_DATE = "2007-01-01" 
-        BATCH_SIZE = 50 
+    # 1. 秒讀 CSV
+    history = load_csv("breadth.csv")
+    if history is None: return None
 
-        # 1. 取得 S&P 500 成分股清單
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(url, headers=headers)
-        r.raise_for_status()
-        tables = pd.read_html(StringIO(r.text), header=0)
-        tickers = tables[0]['Symbol'].tolist()
-        tickers = [t.replace('.', '-') for t in tickers]
+    # 2. 整理數據 (CSV 裡已經有 date, value, breadth_50, breadth_200)
+    # 這裡直接用 history 就可以了
+    
+    current_val = float(history["value"].iloc[-1])
+    change = (current_val - float(history["value"].iloc[0])) / float(history["value"].iloc[0]) * 100.0
 
-        # 2. 批量下載資料
-        data = yf.download(tickers, start=START_DATE, auto_adjust=True, threads=True, progress=False)['Close']
-        data = data.dropna(axis=1, how='all').ffill().astype('float32')
-
-        # 3. 分批計算市場寬度
-        numerator_50 = pd.Series(0, index=data.index, dtype='float32')
-        numerator_200 = pd.Series(0, index=data.index, dtype='float32')
-        denominator = pd.Series(0, index=data.index, dtype='float32')
-
-        all_cols = data.columns
-        total_stocks = len(all_cols)
-
-        for i in range(0, total_stocks, BATCH_SIZE):
-            batch_cols = all_cols[i : i + BATCH_SIZE]
-            batch_data = data[batch_cols]
-            
-            ma50_batch = batch_data.rolling(window=50).mean()
-            ma200_batch = batch_data.rolling(window=200).mean()
-            
-            above_50_batch = (batch_data > ma50_batch).astype('float32')
-            above_200_batch = (batch_data > ma200_batch).astype('float32')
-            valid_batch = batch_data.notna().astype('float32')
-            
-            numerator_50 = numerator_50.add(above_50_batch.sum(axis=1).fillna(0), fill_value=0)
-            numerator_200 = numerator_200.add(above_200_batch.sum(axis=1).fillna(0), fill_value=0)
-            denominator = denominator.add(valid_batch.sum(axis=1).fillna(0), fill_value=0)
-            
-            del batch_data, ma50_batch, ma200_batch, above_50_batch, above_200_batch, valid_batch
-            gc.collect()
-
-        breadth_50 = (numerator_50 / denominator).fillna(0) * 100
-        breadth_200 = (numerator_200 / denominator).fillna(0) * 100
-        
-        # 在這裡先算好平滑值，避免切區間後產生 NaN
-        breadth_50_smooth = breadth_50.rolling(window=3).mean()
-
-        del data, numerator_50, numerator_200, denominator
-        gc.collect()
-
-        # 4. 下載 S&P 500 大盤
-        sp500_df = yf.download("^GSPC", start=START_DATE, auto_adjust=True, progress=False)
-        sp500 = sp500_df['Close'].squeeze() if 'Close' in sp500_df.columns else sp500_df.squeeze()
-
-        # 5. 合併成一個 DataFrame
-        history = pd.DataFrame({
-            "value": sp500,             # 大盤價格 (作為主 value)
-            "breadth_200": breadth_200, # 200MA 寬度
-            "breadth_50": breadth_50_smooth # 50MA 寬度 (已平滑)
-        }).dropna().reset_index()
-        
-        history["date"] = history["Date"]
-        
-        # 計算最新報價與漲跌幅 (針對大盤)
-        current_value = float(history["value"].iloc[-1])
-        change_pct = (history["value"].iloc[-1] - history["value"].iloc[0]) / history["value"].iloc[0] * 100.0
-
-        return {"value": current_value, "change_pct": change_pct, "history": history}
-
-    except Exception as e:
-        print(f"Error fetching breadth data: {e}")
-        return None
+    return {"value": current_val, "change_pct": change, "history": history}
 
 def plot_chart(df_filtered, item):
     """

@@ -1,39 +1,35 @@
 """利率數據：10Y、2Y、10-2 Spread（FRED）與專屬繪圖邏輯"""
-import streamlit as st
-import pandas as pd
-import datetime as dt
-from pandas_datareader import data as web
+"""
+data_engine/rates/treasury.py
+(極速版) 讀取 data/rates.csv
+"""
 import plotly.graph_objects as go
 from datetime import datetime
+import pandas as pd
+from data_engine import load_csv  # 👈 引用我們剛寫好的工具
 
-@st.cache_data(ttl=3600)
+# ❌ 舊的 @st.cache_data 拿掉，讀 CSV 不需要快取
 def fetch_data(ticker: str):
-    """ (維持原本抓取邏輯，完全不動) """
-    try:
-        start_date = dt.datetime(1980, 1, 1)
-        end_date = dt.datetime.now()
-        df = web.DataReader(["DGS10", "DGS2"], "fred", start_date, end_date)
-        df["Spread"] = df["DGS10"] - df["DGS2"]
-        df = df.dropna()
+    # 1. 秒讀 CSV
+    df = load_csv("rates.csv")
+    if df is None: return None
 
-        if df.empty: return None
+    # 2. 根據 ticker 挑選數據
+    # CSV 裡的欄位是: date, DGS10, DGS2, Spread
+    if ticker == "DGS10": series = df["DGS10"]
+    elif ticker == "DGS2": series = df["DGS2"]
+    elif ticker == "SPREAD_10_2": series = df["Spread"]
+    else: return None
 
-        if ticker == "DGS10": series = df["DGS10"]
-        elif ticker == "DGS2": series = df["DGS2"]
-        elif ticker == "SPREAD_10_2": series = df["Spread"]
-        else: return None
+    # 3. 準備回傳格式
+    history = df[["date", "DGS10", "DGS2", "Spread"]].copy()
+    history["value"] = series.values # 為了畫圖統一，複製一份叫 value
+    
+    current_val = float(series.iloc[-1])
+    # 簡單算一下漲跌 (跟第一筆比)
+    change = (current_val - float(series.iloc[0])) / float(series.iloc[0]) * 100.0
 
-        history = df[["DGS10", "DGS2", "Spread"]].copy()
-        history["date"] = history.index
-        history["value"] = series.values
-        history = history.reset_index(drop=True)
-
-        value = float(series.iloc[-1])
-        change_pct = (series.iloc[-1] - series.iloc[0]) / series.iloc[0] * 100.0
-
-        return {"value": value, "change_pct": change_pct, "history": history}
-    except Exception:
-        return None
+    return {"value": current_val, "change_pct": change, "history": history}
 
 def plot_chart(df_filtered, item):
     """

@@ -3,7 +3,7 @@ notes/market/strength.py
 板塊強弱度綜合筆記 (BamHI Strategy)
 """
 
-def get_note():
+def get_note(ticker):
     return """
 ### 🛡️ Tab 1: GICS 十一大板塊 (戰略資金流向)
 

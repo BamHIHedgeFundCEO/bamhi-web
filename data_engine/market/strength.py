@@ -20,8 +20,8 @@ SECTORS_SMALL = [
     'XBI', 'UFO', 'ROBO', 
     'XOP', 'OIH', 'URA', 'NLR', 'TAN', 
     'GDX', 'COPX', 'LIT', 
-    'XHB', 'XRT', 'IYT', 'JETS', 'PAVE', 
-    'ITA', 'IHI'
+    'XHB', 'XRT', 'XTN', 'JETS', 'PAVE', 
+    'XAR', 'IHI'
 ]
 
 def fetch_data(ticker: str):

@@ -21,7 +21,13 @@ INDICATORS = {
                 "name": "美股板塊強弱 (Sector Strength)", 
                 "ticker": "ALL", 
                 "module": "strength"
-            }
+            },
+            {
+                "id": "SENTIMENT_COMBO",
+                "name": "散戶 & 機構情緒方向", 
+                "ticker": "NAAIM_AAII", 
+                "module": "naaim" # 指向我們新寫的 naaim 模組
+            },
         ],
     },
     "oil": {

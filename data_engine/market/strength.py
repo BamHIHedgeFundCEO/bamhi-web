@@ -178,7 +178,7 @@ def _create_heatmap(df, tickers, title_text, lookback_days):
 
 # 主函數
 def plot_chart(df, item_name):
-    tab1, tab2, tab3 = st.tabs(["🛡️ GICS 大板塊 (線圖)", "🚀 戰術型 Alpha (線圖)", "🔥 資金動能熱力圖"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🛡️ GICS 大板塊 (線圖)", "🚀 戰術型 Alpha (線圖)", "🔥 資金動能熱力圖", "🎯 波段量化信號掃描"])
     
     with tab1:
         st.subheader("GICS 11 大板塊相對強度")
@@ -222,6 +222,101 @@ def plot_chart(df, item_name):
         
         fig_hm_small = _create_heatmap(df, SECTORS_SMALL, f"🚀 戰術小板塊 (過去 {lookback_days} 個交易日)", lookback_days)
         st.plotly_chart(fig_hm_small, use_container_width=True)
+
+    with tab4:
+        st.subheader("🎯 多週期波段量化信號掃描")
+        
+        all_tickers = SECTORS_BIG + SECTORS_SMALL
+        calc_data = []
+        
+        for t in all_tickers:
+            if t not in df.columns: continue
+            series = df[t].dropna()
+            if len(series) < 50:
+                continue
+                
+            curr_price = series.iloc[-1]
+            ma50 = series.rolling(window=50).mean().iloc[-1]
+            
+            ret_20d = (curr_price - series.iloc[-21]) / series.iloc[-21] * 100 if len(series) >= 21 else 0
+            ret_10d = (curr_price - series.iloc[-11]) / series.iloc[-11] * 100 if len(series) >= 11 else 0
+            ret_3d = (curr_price - series.iloc[-4]) / series.iloc[-4] * 100 if len(series) >= 4 else 0
+            
+            calc_data.append({
+                "代號": t,
+                "板塊名稱": t,
+                "最新價格": curr_price,
+                "ma50": ma50,
+                "20D漲跌(%)": ret_20d,
+                "10D漲跌(%)": ret_10d,
+                "3D點火(%)": ret_3d
+            })
+            
+        if calc_data:
+            calc_df = pd.DataFrame(calc_data)
+            calc_df['20D排名(PR)'] = calc_df['20D漲跌(%)'].rank(pct=True) * 100
+            
+            strat_a, strat_b, strat_c = [], [], []
+            
+            for _, row in calc_df.iterrows():
+                if row['最新價格'] > row['ma50']:
+                    if row['20D排名(PR)'] >= 70 and -4 <= row['10D漲跌(%)'] <= 4 and row['3D點火(%)'] > 1.2:
+                        strat_a.append(row)
+                    if row['20D排名(PR)'] >= 70 and row['10D漲跌(%)'] < -4 and row['3D點火(%)'] > 1.0:
+                        strat_b.append(row)
+                else:
+                    if row['20D漲跌(%)'] < 0 and row['3D點火(%)'] < 0:
+                        strat_c.append(row)
+                        
+            df_a = pd.DataFrame(strat_a)
+            df_b = pd.DataFrame(strat_b)
+            df_c = pd.DataFrame(strat_c)
+            
+            def _color_format_strength(val):
+                if pd.isna(val): return ''
+                color = '#00eb00' if val > 0 else '#ff2b2b' if val < 0 else 'grey'
+                return f'color: {color}; font-weight: bold;'
+                
+            display_cols = ['代號', '板塊名稱', '最新價格', '20D漲跌(%)', '20D排名(PR)', '10D漲跌(%)', '3D點火(%)']
+            
+            st.markdown("### 🔥 波段點火 (策略 A)")
+            st.caption("VCP 右側突破：收盤>50MA、中期強勢前30%、近兩週量縮整理(-4%~+4%)、近三天明確點火(>1.2%)。")
+            if not df_a.empty:
+                st.dataframe(
+                    df_a[display_cols].style.format({
+                        "最新價格": "{:.2f}", "20D漲跌(%)": "{:+.2f}", "20D排名(PR)": "{:.0f}", 
+                        "10D漲跌(%)": "{:+.2f}", "3D點火(%)": "{:+.2f}"
+                    }).map(_color_format_strength, subset=['20D漲跌(%)', '10D漲跌(%)', '3D點火(%)']),
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("目前無標的符合此條件")
+                
+            st.markdown("### 💎 強勢回檔 (策略 B)")
+            st.caption("專抓急跌第二波：收盤>50MA、中期強勢前30%、近兩週急跌(<-4%)、近三天買盤反轉(>1.0%)。")
+            if not df_b.empty:
+                st.dataframe(
+                    df_b[display_cols].style.format({
+                        "最新價格": "{:.2f}", "20D漲跌(%)": "{:+.2f}", "20D排名(PR)": "{:.0f}", 
+                        "10D漲跌(%)": "{:+.2f}", "3D點火(%)": "{:+.2f}"
+                    }).map(_color_format_strength, subset=['20D漲跌(%)', '10D漲跌(%)', '3D點火(%)']),
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("目前無標的符合此條件")
+                
+            st.markdown("### ⚠️ 波段破壞 (策略 C)")
+            st.caption("避險與剔除：收盤<50MA、中期與短期皆弱(皆<0)。")
+            if not df_c.empty:
+                st.dataframe(
+                    df_c[display_cols].style.format({
+                        "最新價格": "{:.2f}", "20D漲跌(%)": "{:+.2f}", "20D排名(PR)": "{:.0f}", 
+                        "10D漲跌(%)": "{:+.2f}", "3D點火(%)": "{:+.2f}"
+                    }).map(_color_format_strength, subset=['20D漲跌(%)', '10D漲跌(%)', '3D點火(%)']),
+                    use_container_width=True, hide_index=True
+                )
+            else:
+                st.info("目前無標的符合此條件")
 
     empty_fig = go.Figure()
     empty_fig.update_layout(height=10, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False))

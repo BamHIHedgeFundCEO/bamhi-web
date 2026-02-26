@@ -28,6 +28,12 @@ INDICATORS = {
                 "ticker": "NAAIM_AAII", 
                 "module": "naaim" # 指向我們新寫的 naaim 模組
             },
+            {
+                "id": "world_sectors",
+                "name": "龜族全景動能儀表板",
+                "ticker": "WORLD",
+                "module": "world_sectors"
+            },
         ],
     },
     "oil": {

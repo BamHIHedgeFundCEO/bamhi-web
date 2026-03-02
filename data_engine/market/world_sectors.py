@@ -75,76 +75,85 @@ def plot_chart(df, item):
     # --- 2. 向量化計算所有資產數據 ---
     all_data = []
     
-    # 新增：計算進階信號所需指標
-    # 要求至少需要 200 天歷史資料，若不足則略過
+    # 新增：計算進階信號所需指標 (使用 yfinance 抓取 OHLC 計算 ATR)
+    import yfinance as yf
     
+    flat_tickers = []
+    ticker_to_name = {}
+    for group, dict_ in PORTFOLIO_STRUCTURE.items():
+        for t, name in dict_.items():
+            flat_tickers.append(t)
+            ticker_to_name[t] = name
+            
+    try:
+        yf_df = yf.download(flat_tickers, period="1y", auto_adjust=False, progress=False)
+    except Exception:
+        yf_df = pd.DataFrame()
+        
     calc_data = []
-    
-    for group, tickers in PORTFOLIO_STRUCTURE.items():
-        for t, name in tickers.items():
-            if t not in df.columns:
+    if not yf_df.empty and 'Close' in yf_df.columns:
+        for t in flat_tickers:
+            if isinstance(yf_df.columns, pd.MultiIndex):
+                if t not in yf_df['Close'].columns: continue
+                close_s = yf_df['Close'][t].dropna()
+                high_s = yf_df['High'][t].dropna()
+                low_s = yf_df['Low'][t].dropna()
+            else:
+                close_s = yf_df['Close'].dropna()
+                high_s = yf_df['High'].dropna()
+                low_s = yf_df['Low'].dropna()
+                
+            if len(close_s) < 50:
                 continue
                 
-            series = df[t].dropna()
-            if len(series) < 200:
-                continue # 歷史資料不足 200 天則略過
-                
-            curr_price = series.iloc[-1]
-            ma200 = series.rolling(window=200).mean().iloc[-1]
+            close_s = close_s.sort_index()
+            high_s = high_s.sort_index()
+            low_s = low_s.sort_index()
+
+            curr_price = float(close_s.iloc[-1])
+            ma50 = float(close_s.rolling(window=50).mean().iloc[-1])
             
-            # 計算 5D
-            pct_chg_5d = (curr_price - series.iloc[-6]) / series.iloc[-6] * 100 if len(series) >= 6 else 0
-            
-            # 計算每日報酬率
-            daily_returns = series.pct_change()
-            
-            # 計算 20D 波動率分數
-            if len(series) >= 21:
-                pct_chg_20d = (curr_price - series.iloc[-21]) / series.iloc[-21]
-                vol_20d = daily_returns.tail(20).std()
-                score_20d = (pct_chg_20d / vol_20d) if vol_20d > 0 else 0
-            else:
-                score_20d = 0
-                
-            # 計算 40D 波動率分數
-            if len(series) >= 41:
-                pct_chg_40d = (curr_price - series.iloc[-41]) / series.iloc[-41]
-                vol_40d = daily_returns.tail(40).std()
-                score_40d = (pct_chg_40d / vol_40d) if vol_40d > 0 else 0
-            else:
-                score_40d = 0
-                
+            ret_20d = float((curr_price - close_s.iloc[-21]) / close_s.iloc[-21] * 100) if len(close_s) >= 21 else np.nan
+            ret_10d = float((curr_price - close_s.iloc[-11]) / close_s.iloc[-11] * 100) if len(close_s) >= 11 else np.nan
+            ret_3d = float((curr_price - close_s.iloc[-4]) / close_s.iloc[-4] * 100) if len(close_s) >= 4 else np.nan
+
+            prev_close = close_s.shift(1)
+            tr1 = high_s - low_s
+            tr2 = (high_s - prev_close).abs()
+            tr3 = (low_s - prev_close).abs()
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr_14 = float(tr.rolling(window=14).mean().iloc[-1])
+            atr_pct = (atr_14 / curr_price) * 100 if curr_price > 0 else np.nan
+
+            if np.isnan(ret_20d) or np.isnan(atr_pct): continue
+
             calc_data.append({
                 "代號": t,
-                "名稱": name,
-                "群組": group,
-                "現價": curr_price,
-                "ma200": ma200,
-                "score_40d": score_40d,
-                "score_20d": score_20d,
-                "pct_chg_5d": pct_chg_5d,
+                "名稱": ticker_to_name[t],
+                "最新價格": curr_price,
+                "ma50": ma50,
+                "20D漲跌(%)": ret_20d,
+                "10D漲跌(%)": ret_10d,
+                "3D點火(%)": ret_3d,
+                "日常波動(ATR%)": atr_pct
             })
             
     # 計算 20D PR 排名
     if calc_data:
         calc_df = pd.DataFrame(calc_data)
-        calc_df['pr_20d'] = calc_df['score_20d'].rank(pct=True) * 100
+        calc_df['20D排名(PR)'] = calc_df['20D漲跌(%)'].rank(pct=True) * 100
         
-        # 產生策略信號
-        strategy_a = []
-        strategy_b = []
-        strategy_c = []
+        strategy_a, strategy_b, strategy_c = [], [], []
         
         for _, row in calc_df.iterrows():
-            # 策略 A：突破共振
-            if row['現價'] > row['ma200'] and row['score_40d'] > 0 and row['pr_20d'] >= 75 and row['pct_chg_5d'] > 0:
-                strategy_a.append(row)
-            # 策略 B：錯殺反彈
-            elif row['現價'] > row['ma200'] and row['score_40d'] > 0 and row['score_20d'] < -0.5 and row['pct_chg_5d'] > 1:
-                strategy_b.append(row)
-            # 策略 C：弱勢避險
-            elif row['現價'] < row['ma200'] and row['score_40d'] <= 0 and row['score_20d'] < 0 and row['pct_chg_5d'] < 0:
-                strategy_c.append(row)
+            atr = row['日常波動(ATR%)']
+            cond_a = (row['最新價格'] > row['ma50']) and (row['20D排名(PR)'] >= 70) and (abs(row['10D漲跌(%)']) < 2.0 * atr) and (row['3D點火(%)'] > 1.5 * atr)
+            cond_b = (row['最新價格'] > row['ma50']) and (row['20D排名(PR)'] >= 70) and (row['10D漲跌(%)'] < -3.0 * atr) and (row['3D點火(%)'] > 1.0 * atr)
+            cond_c = (row['最新價格'] < row['ma50']) and (row['20D漲跌(%)'] < 0) and (row['3D點火(%)'] < 0)
+
+            if cond_a: strategy_a.append(row)
+            if cond_b: strategy_b.append(row)
+            if cond_c: strategy_c.append(row)
                 
         strategy_a_df = pd.DataFrame(strategy_a)
         strategy_b_df = pd.DataFrame(strategy_b)
@@ -241,52 +250,32 @@ def plot_chart(df, item):
     st.subheader("🎯 多週期量化信號掃描")
     
     if calc_data:
-        col_a, col_b, col_c = st.columns(3)
+        display_cols = ['代號', '名稱', '最新價格', '日常波動(ATR%)', '20D排名(PR)', '10D漲跌(%)', '3D點火(%)']
         
-        with col_a:
-            st.markdown("### 🔥 突破共振 (策略 A)")
-            st.caption("順勢作多：均線之上，長線動能佳，中期強勢前25%，短線點火。")
-            if not strategy_a_df.empty:
+        def render_strategy(df_strat):
+            if not df_strat.empty:
+                df_display = df_strat[display_cols].copy()
                 st.dataframe(
-                    strategy_a_df[['代號', '名稱', '現價', 'score_40d', 'pr_20d', 'pct_chg_5d']]
-                    .rename(columns={'score_40d': '40D分數', 'pr_20d': '20D排名(PR)', 'pct_chg_5d': '5D漲幅(%)'})
-                    .style.format({"現價": "{:.2f}", "40D分數": "{:.2f}", "20D排名(PR)": "{:.0f}", "5D漲幅(%)": "{:+.2f}"})
-                    .map(_color_surfer, subset=['5D漲幅(%)']),
-                    use_container_width=True,
-                    hide_index=True
+                    df_display.style.format({
+                        "最新價格": "{:.2f}",
+                        "日常波動(ATR%)": "{:.2f}",
+                        "20D排名(PR)": "{:.2f}", 
+                        "10D漲跌(%)": "{:+.2f}",
+                        "3D點火(%)": "{:+.2f}"
+                    }).map(_color_surfer, subset=['10D漲跌(%)', '3D點火(%)']),
+                    use_container_width=True, hide_index=True
                 )
             else:
-                st.info("目前無觸發標的")
-                
-        with col_b:
-            st.markdown("### 💎 錯殺反彈 (策略 B)")
-            st.caption("拉回低接：均線之上，長線動能佳，中期深度洗盤，短線強彈(>1%)。")
-            if not strategy_b_df.empty:
-                st.dataframe(
-                    strategy_b_df[['代號', '名稱', '現價', 'score_40d', 'pr_20d', 'pct_chg_5d']]
-                    .rename(columns={'score_40d': '40D分數', 'pr_20d': '20D排名(PR)', 'pct_chg_5d': '5D漲幅(%)'})
-                    .style.format({"現價": "{:.2f}", "40D分數": "{:.2f}", "20D排名(PR)": "{:.0f}", "5D漲幅(%)": "{:+.2f}"})
-                    .map(_color_surfer, subset=['5D漲幅(%)']),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("目前無觸發標的")
-                
-        with col_c:
-            st.markdown("### ⚠️ 弱勢避險 (策略 C)")
-            st.caption("剔除與放空觀察：破年線，且長中短期動能皆為負值。")
-            if not strategy_c_df.empty:
-                st.dataframe(
-                    strategy_c_df[['代號', '名稱', '現價', 'score_40d', 'pr_20d', 'pct_chg_5d']]
-                    .rename(columns={'score_40d': '40D分數', 'pr_20d': '20D排名(PR)', 'pct_chg_5d': '5D漲幅(%)'})
-                    .style.format({"現價": "{:.2f}", "40D分數": "{:.2f}", "20D排名(PR)": "{:.0f}", "5D漲幅(%)": "{:+.2f}"})
-                    .map(_color_surfer, subset=['5D漲幅(%)']),
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("目前無觸發標的")
+                st.write("目前無標的符合此條件")
+
+        st.subheader("🔥 策略 A：動態點火 (VCP 動態突破)")
+        render_strategy(strategy_a_df)
+        
+        st.subheader("💎 策略 B：動態錯殺 (乖離過大反彈)")
+        render_strategy(strategy_b_df)
+        
+        st.subheader("⚠️ 策略 C：波段破壞 (避險與資金撤出)")
+        render_strategy(strategy_c_df)
                 
     # 回傳空圖以符合 app.py 的架構規範
     empty_fig = go.Figure()

@@ -11,37 +11,88 @@ import numpy as np
 
 # 定義龜族世界觀 ETF 清單結構
 PORTFOLIO_STRUCTURE = {
-    "🌏 亞洲與太平洋": {
+    "🌐 全球與美國大盤 (Global & US Broad)": {
+        "VT": "全球全市場", "ACWI": "全球市場(ACWI)", "ACWX": "全球(除美國)",
+        "VTI": "美股全市場", "SPY": "標普500", "QQQ": "納斯達克", "DIA": "道瓊工業",
+        "IWM": "羅素2000", "MDY": "中型股", 
+        "XLK": "科技板塊", "XLF": "金融板塊", "XLV": "醫療保健"
+    },
+    "🌏 亞洲與太平洋 (Asia & Pacific)": {
         "EWA": "澳洲", "EWH": "香港", "EWM": "馬來西亞", "EWS": "新加坡",
-        "EWT": "台灣", "EWY": "南韓", "IFN": "印度", "EWJ": "日本", 
-        "EPP": "亞洲(不含日本)", "AAXJ": "亞洲(不含日本)"
+        "EWT": "台灣", "EWY": "南韓", "IFN": "印度(IFN)", "INDA": "印度(INDA)", 
+        "EWJ": "日本", "EPP": "亞洲(不含日本)", "AAXJ": "亞洲(除日本)",
+        "FXI": "中國大型股(H股)", "MCHI": "中國全市場", "ASHR": "中國滬深300(A股)", 
+        "KWEB": "中國互聯網", "VNM": "越南", "EIDO": "印尼", "THD": "泰國", "EPHE": "菲律賓"
     },
-    "🌎 美洲與新興市場": {
-        "ILF": "拉丁美洲", "EEM": "新興市場", 
-        "EWC": "加拿⼤", "EWW": "墨西哥", "EWZ": "巴西",
-        "ARS": "阿根廷", "ECH": "智利"
+    "🌎 美洲與新興市場 (Americas & EM)": {
+        "EEM": "新興市場", "EMXC": "新興市場(除中國)", "VWO": "新興市場(Vanguard)",
+        "ILF": "拉丁美洲", "EWC": "加拿⼤", "EWW": "墨西哥", "EWZ": "巴西",
+        "ARS": "阿根廷", "ARGT": "阿根廷(ARGT)", "ECH": "智利", "EPU": "秘魯", "GXG": "哥倫比亞"
     },
-    "🌍 歐洲板塊": {
-        "EFA": "歐澳遠東", "EZU": "歐元區", "IEUR": "歐洲全市場",
+    "🌍 歐洲板塊 (Europe)": {
+        "EFA": "歐澳遠東", "EZU": "歐元區", "IEUR": "歐洲全市場", "VGK": "歐洲(Vanguard)",
         "EWD": "瑞典", "EWG": "德國", "EWK": "比利時", "EWL": "瑞士",
         "EWN": "荷蘭", "EWO": "奧地利", "EWP": "西班牙", "EWQ": "法國", 
-        "EWU": "英國", "EWI": "義大利"
+        "EWU": "英國", "EWI": "義大利", "GREK": "希臘", "EPOL": "波蘭"
     },
-    "🦅 美國與核心資產": {
-        "SPY": "標普500", "QQQ": "納斯達克", "DIA": "道瓊工業",
-        "IWM": "羅素2000", "MDY": "中型股", "VTI": "美股全市場",
-        "XLK": "科技板塊", "XLF": "金融板塊", "XLV": "醫療保健",
-        "GLD": "黃金", "SLV": "白銀", "USO": "石油",
-        "TLT": "20年公債", "IEF": "7-10年公債", "LQD": "投資級債", "HYG": "高收債",
-        "VNQ": "房地產REITs"
+    "🐫 中東與非洲 (Middle East & Africa)": {
+        "EZA": "南非", "TUR": "土耳其", "KSA": "沙烏地阿拉伯", 
+        "EIS": "以色列", "AFK": "非洲全市場"
+    },
+    "🏢 房地產與抵押債 (Real Estate)": {
+        "VNQ": "美國房地產", "VNQI": "全球房地產(除美國)", "REET": "全球REITs", 
+        "REM": "抵押貸款REITs", "MBB": "MBS抵押債券"
+    },
+    "💰 高股息與進階收益 (Dividend & Income)": {
+        "PFF": "特別股與收益", "DVY": "精選高股息", "SCHD": "美國紅利", "IDV": "國際高股息", 
+        "AMLP": "能源MLP", "JEPI": "標普掩護性買權", "JEPQ": "納指掩護性買權", 
+        "QQQI": "納斯達克高收益", "DIVO": "增強型股息", "QDVO": "成長與收益", 
+        "QYLD": "納指Covered Call", "XYLD": "標普Covered Call"
+    },
+    "🛡️ 固定收益與債券 (Fixed Income)": {
+        "BND": "全市場債券", "AGG": "美國總體債", "BNDX": "國際債券", 
+        "TIP": "抗通膨債", "VTIP": "短期抗通膨債", 
+        "TLT": "20年期公債", "TLH": "10-20年公債", "IEF": "7-10年公債", 
+        "IEI": "3-7年公債", "SHY": "1-3年公債", "BILS": "3-12個月國庫券", 
+        "BIL": "1-3個月國庫券", "SGOV": "0-3個月國庫券", 
+        "LQD": "投資級公司債", "HYG": "高收益債", "BINC": "主動型彈性收益", 
+        "JAAA": "AAA級CLO", "JBBB": "BBB級CLO", "EMB": "新興市場債", "EMHY": "新興市場高收債"
+    },
+    "🛢️ 大宗商品與加密資產 (Commodities & Crypto)": {
+        "DBC": "廣泛大宗商品", "PDBC": "大宗商品(PDBC)", "DBB": "基本金屬", "DBA": "農產品", 
+        "GLD": "黃金", "SLV": "白銀", "CPER": "銅礦指數",
+        "USO": "美國原油", "UNG": "天然氣", 
+        "UUP": "美元指數", "IBIT": "比特幣"
     }
 }
 
+@st.cache_data(ttl=3600)
+def fetch_world_data_fallback():
+    all_tickers = []
+    for group in PORTFOLIO_STRUCTURE.values():
+        all_tickers.extend(group.keys())
+    all_tickers = list(set(all_tickers))
+    try:
+        import yfinance as yf
+        yf_df = yf.download(all_tickers, period="2y", auto_adjust=False, progress=False)['Close']
+        df = yf_df.reset_index()
+        df = df.rename(columns={'Date': 'date'})
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+        df = df.ffill().bfill()
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
 def fetch_data(ticker: str):
     file_path = "data/world_sectors.csv"
-    if not os.path.exists(file_path):
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path, parse_dates=['date'])
+    else:
+        df = fetch_world_data_fallback()
+        
+    if df is None or df.empty:
         return None
-    df = pd.read_csv(file_path, parse_dates=['date'])
     return {"history": df, "value": 0, "change_pct": 0}
 
 # 負責繪製顏色的輔助函數
@@ -227,23 +278,25 @@ def plot_chart(df, item):
     st.subheader("📋 各區域詳細強弱排行")
     
     groups = list(PORTFOLIO_STRUCTURE.keys())
-    col1, col2 = st.columns(2)
-    col3, col4 = st.columns(2)
-    cols = [col1, col2, col3, col4]
-
-    for i, group in enumerate(groups):
-        with cols[i]:
-            st.markdown(f"#### {group}")
-            group_df = result_df[result_df['群組'] == group].sort_values(by='強弱分數', ascending=False)
-            display_df = group_df[['代號', '名稱', '現價', '漲跌幅(%)', '強弱分數']]
-            
-            st.dataframe(
-                display_df.style.map(_color_surfer, subset=['漲跌幅(%)', '強弱分數'])
-                .format({"現價": "{:.2f}", "漲跌幅(%)": "{:+.2f}", "強弱分數": "{:+.2f}"}),
-                use_container_width=True,
-                hide_index=True,
-                height=400 
-            )
+    
+    # 動態產生 2 欄佈局以因應群組數量的變更
+    for i in range(0, len(groups), 2):
+        cols = st.columns(2)
+        for j in range(2):
+            if i + j < len(groups):
+                group = groups[i + j]
+                with cols[j]:
+                    st.markdown(f"#### {group}")
+                    group_df = result_df[result_df['群組'] == group].sort_values(by='強弱分數', ascending=False)
+                    display_df = group_df[['代號', '名稱', '現價', '漲跌幅(%)', '強弱分數']]
+                    
+                    st.dataframe(
+                        display_df.style.map(_color_surfer, subset=['漲跌幅(%)', '強弱分數'])
+                        .format({"現價": "{:.2f}", "漲跌幅(%)": "{:+.2f}", "強弱分數": "{:+.2f}"}),
+                        use_container_width=True,
+                        hide_index=True,
+                        height=400 
+                    )
 
     # --- 5. 多週期量化信號掃描 ---
     st.markdown("---")
